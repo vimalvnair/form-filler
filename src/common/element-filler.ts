@@ -6,6 +6,7 @@ import RandExp from 'randexp';
 
 import DataGenerator from 'src/common/data-generator';
 import { SanitizeText } from 'src/common/helpers';
+import * as $ from "jquery"
 
 type FillableElement = HTMLInputElement | HTMLTextAreaElement | HTMLSelectElement;
 
@@ -57,6 +58,15 @@ class ElementFiller {
   }
 
   private shouldIgnoreElement(element: FillableElement): boolean {
+    if (['checkbox', 'select-one', 'radio'].indexOf(element.type) > -1) {
+      const customField = this.findCustomField(this.getElementName(element), ['regex']);
+
+      if(customField && $(element).parent().is(":visible")){
+        return false;
+      }
+    }
+
+
     if (['button', 'submit', 'reset', 'file', 'hidden', 'image'].indexOf(element.type) > -1) {
       return true;
     }
@@ -72,7 +82,7 @@ class ElementFiller {
       return true;
     }
 
-    if (this.options.ignoreFieldsWithContent) {
+    if (this.options.ignoreFieldsWithContent && !window.overrideIgnoreFieldsWithContent) {
       // A radio button list will be ignored if it has been selected previously.
       if (element.type === 'radio') {
         if (document.querySelectorAll(`input[name="${element.name}"]:checked`).length > 0) {
@@ -89,14 +99,26 @@ class ElementFiller {
       }
     }
 
+    window.overrideIgnoreFieldsWithContent = false
     // If all above checks have failed, we do not need to ignore this element.
     return false;
   }
 
   private selectRandomRadio(name: string): void {
     let i = 0;
+    let selectIndex = -1;
+
     const list = [];
     const elements = document.getElementsByName(name) as NodeListOf<HTMLInputElement>;
+    const customField = this.findCustomField(this.getElementName(elements[0]), ['regex']);
+
+    if(customField){
+      let generatedData = this.generateDummyDataForCustomField(customField, elements[0]);
+
+      if(!isNaN(parseInt(generatedData))){
+        selectIndex = parseInt(generatedData);
+      }
+    }
 
     for (; i < elements.length; i += 1) {
       if (elements[i].type === 'radio') {
@@ -104,14 +126,17 @@ class ElementFiller {
       }
     }
 
-    const radioElement = list[Math.floor(Math.random() * list.length)];
+    if(selectIndex == -1){
+      selectIndex = Math.floor(Math.random() * list.length)
+    }
+
+    const radioElement = list[selectIndex];
     radioElement.checked = true;
     this.fireEvents(radioElement);
   }
 
   private findCustomField(elementName: string, matchTypes: CustomFieldTypes[] = []): ICustomField | undefined {
     const doMatchType = matchTypes.length > 0;
-
     for (let i = 0; i < this.options.fields.length; i += 1) {
       if (this.isAnyMatch(elementName, this.options.fields[i].match)) {
         if (doMatchType) {
@@ -289,6 +314,12 @@ class ElementFiller {
 
     switch (elementType) {
       case 'checkbox':
+        const checkboxCustomField = this.findCustomField(this.getElementName(element), ['regex']);
+
+        if(checkboxCustomField){
+          $(element).parent().click();
+        }
+
         if (this.isAnyMatch(element.name.toLowerCase(), this.options.agreeTermsFields)) {
           element.checked = true;
         } else {
@@ -316,7 +347,6 @@ class ElementFiller {
               maxDate = moment(element.max).toDate();
             }
           }
-
           element.value = this.generator.date(minDate, maxDate);
         }
         break;
@@ -398,6 +428,8 @@ class ElementFiller {
         } else {
           element.value = this.generator.phoneNumber();
         }
+
+        this.fillInputMaskedField(element, element.value);
         break;
 
       case 'url':
@@ -419,6 +451,11 @@ class ElementFiller {
           const customField = this.findCustomField(this.getElementName(element));
           this.previousValue = this.generateDummyDataForCustomField(customField, element);
           element.value = this.previousValue;
+          if(customField){
+            if((customField.type == "number") || (customField.type == "regex") || (customField.type == "date")){
+              this.fillInputMaskedField(element, this.previousValue);
+            }
+          }
         }
         break;
     }
@@ -426,6 +463,14 @@ class ElementFiller {
     if (this.options.triggerClickEvents && fireEvent) {
       this.fireEvents(element);
     }
+  }
+
+  public fillInputMaskedField(element: HTMLInputElement, elementValue: string): void {
+    var script = document.createElement('script');
+    var jElement = "$('#"+ element.id  + "')";
+    script.textContent = jElement + ".inputmask('setvalue', '" + elementValue + "')";
+    (document.head||document.documentElement).appendChild(script);
+    script.remove();
   }
 
   public fillTextAreaElement(element: HTMLTextAreaElement): void {

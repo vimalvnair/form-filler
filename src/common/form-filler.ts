@@ -6,6 +6,7 @@ class FormFiller {
 
   constructor(options: IFormFillerOptions) {
     this.elementFiller = new ElementFiller(options);
+    window.overrideIgnoreFieldsWithContent = false;
   }
 
   private fillAllElements(container: Document | HTMLElement): void {
@@ -36,6 +37,7 @@ class FormFiller {
 
   public fillThisInput(): void {
     const element = this.clickedElement || document.activeElement;
+    window.overrideIgnoreFieldsWithContent = true;
 
     if (element) {
       const tagName = element.tagName.toLowerCase();

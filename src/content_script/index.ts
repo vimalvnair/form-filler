@@ -3,6 +3,7 @@ import FormFiller from 'src/common/form-filler';
 declare global {
   interface Window {
     formFiller: FormFiller;
+    overrideIgnoreFieldsWithContent: boolean;
   }
 }
 
